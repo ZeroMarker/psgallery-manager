@@ -1,16 +1,12 @@
 Describe 'PsGalleryManager Module' {
 
-    BeforeAll {
-        $ModulePath = "$PSScriptRoot/../PsGalleryManager.psd1"
-    }
-
     Context 'Module Import' {
         It 'Should import without errors' {
-            { Import-Module $ModulePath -Force -ErrorAction Stop } | Should -Not -Throw
+            { Import-Module "$PSScriptRoot/../PsGalleryManager.psd1" -Force -ErrorAction Stop } | Should -Not -Throw
         }
 
         It 'Should export expected functions' {
-            Import-Module $ModulePath -Force
+            Import-Module "$PSScriptRoot/../PsGalleryManager.psd1" -Force
             $ExpectedFunctions = @(
                 'Export-ModuleManifest',
                 'Get-InstalledModuleInfo',
@@ -28,7 +24,7 @@ Describe 'PsGalleryManager Module' {
         }
 
         It 'Should have a valid module manifest' {
-            $manifest = Test-ModuleManifest -Path $ModulePath -ErrorAction Stop
+            $manifest = Test-ModuleManifest -Path "$PSScriptRoot/../PsGalleryManager.psd1" -ErrorAction Stop
             $manifest | Should -Not -BeNullOrEmpty
             $manifest.Name | Should -Be 'PsGalleryManager'
         }
@@ -36,7 +32,7 @@ Describe 'PsGalleryManager Module' {
 
     Context 'Function Parameters' {
         BeforeAll {
-            Import-Module $ModulePath -Force
+            Import-Module "$PSScriptRoot/../PsGalleryManager.psd1" -Force
         }
 
         It 'Search-PsGalleryModule should have Name parameter' {
@@ -66,7 +62,7 @@ Describe 'PsGalleryManager Module' {
 
     Context 'Help Documentation' {
         BeforeAll {
-            Import-Module $ModulePath -Force
+            Import-Module "$PSScriptRoot/../PsGalleryManager.psd1" -Force
         }
 
         It 'All public functions should have synopsis' {

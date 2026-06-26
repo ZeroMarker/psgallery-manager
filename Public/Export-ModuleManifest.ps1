@@ -42,7 +42,7 @@ function Export-ModuleManifest {
 
             if ($PSCmdlet.ShouldProcess($Path, "Export module manifest")) {
                 $Manifest | ConvertTo-Json -Depth 10 | Set-Content -Path $Path -Encoding UTF8
-                Write-Host "Exported $($Modules.Count) modules to '$Path'" -ForegroundColor Green
+                Write-Information "Exported $($Modules.Count) modules to '$Path'" -InformationAction Continue
             }
         }
         catch {

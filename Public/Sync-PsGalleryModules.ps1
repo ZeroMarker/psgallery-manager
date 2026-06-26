@@ -73,7 +73,7 @@ function Sync-PsGalleryModules {
 
         if (-not $Installed) {
             if ($DryRun) {
-                Write-Host "[DryRun] Would install: $($Module.name)" -ForegroundColor Yellow
+                Write-Information "[DryRun] Would install: $($Module.name)" -InformationAction Continue
                 $Results.Installed += $Module.name
             }
             elseif ($PSCmdlet.ShouldProcess($Module.name, "Install module")) {
@@ -88,7 +88,7 @@ function Sync-PsGalleryModules {
                 }
                 try {
                     Install-Module @Params
-                    Write-Host "Installed: $($Module.name)" -ForegroundColor Green
+                    Write-Information "Installed: $($Module.name)" -InformationAction Continue
                     $Results.Installed += $Module.name
                 }
                 catch {
@@ -98,13 +98,13 @@ function Sync-PsGalleryModules {
         }
         elseif ($Module.version -and $Installed.Version -ne $Module.version) {
             if ($DryRun) {
-                Write-Host "[DryRun] Would update: $($Module.name) ($($Installed.Version) -> $($Module.version))" -ForegroundColor Yellow
+                Write-Information "[DryRun] Would update: $($Module.name) ($($Installed.Version) -> $($Module.version))" -InformationAction Continue
                 $Results.Updated += $Module.name
             }
             elseif ($PSCmdlet.ShouldProcess($Module.name, "Update to version $($Module.version)")) {
                 try {
                     Update-Module -Name $Module.name -Force -ErrorAction Stop
-                    Write-Host "Updated: $($Module.name)" -ForegroundColor Green
+                    Write-Information "Updated: $($Module.name)" -InformationAction Continue
                     $Results.Updated += $Module.name
                 }
                 catch {
@@ -121,13 +121,13 @@ function Sync-PsGalleryModules {
         $Unlisted = $InstalledModules | Where-Object { $_.Name -notin $DesiredModules.name }
         foreach ($Module in $Unlisted) {
             if ($DryRun) {
-                Write-Host "[DryRun] Would remove: $($Module.Name)" -ForegroundColor Yellow
+                Write-Information "[DryRun] Would remove: $($Module.Name)" -InformationAction Continue
                 $Results.Removed += $Module.Name
             }
             elseif ($PSCmdlet.ShouldProcess($Module.Name, "Remove unlisted module")) {
                 try {
                     Uninstall-Module -Name $Module.Name -Force -ErrorAction Stop
-                    Write-Host "Removed: $($Module.Name)" -ForegroundColor Red
+                    Write-Information "Removed: $($Module.Name)" -InformationAction Continue
                     $Results.Removed += $Module.Name
                 }
                 catch {
@@ -138,13 +138,13 @@ function Sync-PsGalleryModules {
     }
 
     if ($DryRun) {
-        Write-Host "`n--- DryRun Summary ---" -ForegroundColor Cyan
+        Write-Information "`n--- DryRun Summary ---" -InformationAction Continue
     }
     else {
-        Write-Host "`n--- Sync Summary ---" -ForegroundColor Cyan
+        Write-Information "`n--- Sync Summary ---" -InformationAction Continue
     }
-    Write-Host "Installed: $($Results.Installed.Count)" -ForegroundColor Green
-    Write-Host "Updated:   $($Results.Updated.Count)" -ForegroundColor Green
-    Write-Host "Removed:   $($Results.Removed.Count)" -ForegroundColor Red
-    Write-Host "Skipped:   $($Results.Skipped.Count)" -ForegroundColor Gray
+    Write-Information "Installed: $($Results.Installed.Count)" -InformationAction Continue
+    Write-Information "Updated:   $($Results.Updated.Count)" -InformationAction Continue
+    Write-Information "Removed:   $($Results.Removed.Count)" -InformationAction Continue
+    Write-Information "Skipped:   $($Results.Skipped.Count)" -InformationAction Continue
 }
