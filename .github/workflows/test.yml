@@ -1,0 +1,179 @@
+name: Test Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_publish:
+        description: 'Test PSGallery publish (dry run)'
+        required: false
+        type: boolean
+        default: false
+      test_release:
+        description: 'Test release build'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test Build
+    if: inputs.test_release == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build module package
+        shell: pwsh
+        run: |
+          $stagingDir = './staging/PsGalleryManager'
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+          Copy-Item -Path './PsGalleryManager.psd1','./PsGalleryManager.psm1' -Destination $stagingDir
+          Copy-Item -Path './Public','./Private' -Destination $stagingDir -Recurse -ErrorAction SilentlyContinue
+
+          $manifestPath = Join-Path $stagingDir 'PsGalleryManager.psd1'
+          $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
+          Write-Host "=== Build Result ===" -ForegroundColor Cyan
+          Write-Host "Module:   $($manifest.Name)" -ForegroundColor Green
+          Write-Host "Version:  $($manifest.Version)" -ForegroundColor Green
+          Write-Host "Functions: $($manifest.ExportedFunctions.Count)" -ForegroundColor Green
+          Write-Host "GUID:     $($manifest.Guid)" -ForegroundColor Green
+
+          Import-Module $manifestPath -Force -ErrorAction Stop
+          $commands = Get-Command -Module PsGalleryManager
+          Write-Host "`nExported commands:" -ForegroundColor Cyan
+          $commands | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Green }
+
+          # Create zip
+          $outDir = './out'
+          New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+          Compress-Archive -Path "$stagingDir/*" -DestinationPath "$outDir/PsGalleryManager-$($manifest.Version).zip"
+          Write-Host "`nPackage: out/PsGalleryManager-$($manifest.Version).zip" -ForegroundColor Cyan
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: psgallery-manager-test
+          path: out/*.zip
+
+  test:
+    name: Test Module
+    if: inputs.test_release == true
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -MinimumVersion 5.0 -Scope CurrentUser -Force
+
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './Tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+  lint:
+    name: Test Lint
+    if: inputs.test_release == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $excludedRules = @(
+            'PSUseShouldProcessForStateChangeFunctions',
+            'PSAvoidUsingWriteHost',
+            'PSUseSingularNouns'
+          )
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -ExcludeRule $excludedRules
+          if ($results) {
+            $results | Format-Table -AutoSize
+            exit 1
+          }
+          Write-Host "PSScriptAnalyzer: No issues found." -ForegroundColor Green
+
+  publish-dry:
+    name: Test PSGallery Publish
+    if: inputs.test_publish == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and validate module
+        shell: pwsh
+        run: |
+          $stagingDir = './staging/PsGalleryManager'
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+          Copy-Item -Path './PsGalleryManager.psd1','./PsGalleryManager.psm1' -Destination $stagingDir
+          Copy-Item -Path './Public','./Private' -Destination $stagingDir -Recurse -ErrorAction SilentlyContinue
+
+          $manifestPath = Join-Path $stagingDir 'PsGalleryManager.psd1'
+          $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
+
+          Write-Host "=== Module Validation ===" -ForegroundColor Cyan
+          Write-Host "Module:  $($manifest.Name)" -ForegroundColor Green
+          Write-Host "Version: $($manifest.Version)" -ForegroundColor Green
+          Write-Host "Author:  $($manifest.Author)" -ForegroundColor Green
+          Write-Host "GUID:    $($manifest.Guid)" -ForegroundColor Green
+
+          Import-Module $manifestPath -Force -ErrorAction Stop
+          $commands = Get-Command -Module PsGalleryManager
+          Write-Host "Commands: $($commands.Count)" -ForegroundColor Green
+
+          # Simulate nupkg generation
+          $nupkgName = "$($manifest.Name).$($manifest.Version).nupkg"
+          Write-Host "`nWould publish: $nupkgName" -ForegroundColor Yellow
+          Write-Host "To: https://www.powershellgallery.com/api/v2/package/" -ForegroundColor Yellow
+
+          # Check API key exists
+          if ($env:PSGALLERY_API_KEY) {
+            Write-Host "`nPSGALLERY_API_KEY: configured" -ForegroundColor Green
+          } else {
+            Write-Host "`nPSGALLERY_API_KEY: NOT SET" -ForegroundColor Red
+          }
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+
+      - name: Verify PSGallery connectivity
+        shell: pwsh
+        run: |
+          Write-Host "=== PSGallery Connectivity ===" -ForegroundColor Cyan
+          try {
+            $repo = Get-PSRepository -Name PSGallery -ErrorAction Stop
+            Write-Host "Repository: $($repo.Name)" -ForegroundColor Green
+            Write-Host "Source:     $($repo.SourceLocation)" -ForegroundColor Green
+            Write-Host "Trusted:    $($repo.Trusted)" -ForegroundColor Green
+          } catch {
+            Write-Host "Error: $_" -ForegroundColor Red
+          }
+
+          # Check if module already exists
+          Write-Host "`n=== Existing Module Check ===" -ForegroundColor Cyan
+          $existing = Find-Module -Name PsGalleryManager -Repository PSGallery -ErrorAction SilentlyContinue
+          if ($existing) {
+            Write-Host "Found: v$($existing.Version)" -ForegroundColor Yellow
+            Write-Host "Published: $($existing.PublishedDate)" -ForegroundColor Yellow
+          } else {
+            Write-Host "Not yet published" -ForegroundColor Yellow
+          }
