@@ -1,6 +1,6 @@
 @{
     RootModule        = 'PsGalleryManager.psm1'
-    ModuleVersion     = '1.0.2'
+    ModuleVersion     = '1.0.3'
     GUID              = 'a3e8f2b1-7c4d-4e6a-9f1b-2d8c5a3e7f0b'
     Author            = 'ZeroMarker'
     CompanyName       = 'ZeroMarker'

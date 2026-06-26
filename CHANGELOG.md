@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-06-26
+
+### Changed
+- Improve CI: add validation step before release
+- Add environment protection for PSGallery publish
+- Add pre-publish module validation and post-publish verification
+- Add manual publish workflow (`workflow_dispatch`)
+
 ## [1.0.2] - 2026-06-26
 
 ### Fixed
