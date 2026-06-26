@@ -1,0 +1,74 @@
+name: Publish to PSGallery
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.2). Leave empty to use manifest version.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run - validate only, do not publish'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    environment: PSGallery
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update manifest version
+        if: inputs.version != ''
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $manifestPath = './PsGalleryManager.psd1'
+          $content = Get-Content $manifestPath -Raw
+          $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
+          Set-Content $manifestPath -Value $content
+
+      - name: Validate module
+        shell: pwsh
+        run: |
+          $manifestPath = './PsGalleryManager.psd1'
+          $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
+          Write-Host "Module:  $($manifest.Name)" -ForegroundColor Cyan
+          Write-Host "Version: $($manifest.Version)" -ForegroundColor Cyan
+          Write-Host "Author:  $($manifest.Author)" -ForegroundColor Cyan
+          Write-Host "GUID:    $($manifest.Guid)" -ForegroundColor Cyan
+
+          Import-Module $manifestPath -Force -ErrorAction Stop
+          $commands = Get-Command -Module PsGalleryManager
+          Write-Host "`nExported commands:" -ForegroundColor Cyan
+          $commands | ForEach-Object { Write-Host "  - $($_.Name)" }
+
+      - name: Publish to PSGallery
+        if: inputs.dry_run == false
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          if (-not $env:PSGALLERY_API_KEY) {
+            Write-Error "PSGALLERY_API_KEY secret is not configured."
+            exit 1
+          }
+
+          $manifest = Test-ModuleManifest -Path './PsGalleryManager.psd1' -ErrorAction Stop
+          Write-Host "Publishing $($manifest.Name) v$($manifest.Version)..." -ForegroundColor Cyan
+          Publish-Module -Path . -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
+          Write-Host "Published successfully!" -ForegroundColor Green
+
+      - name: Dry run summary
+        if: inputs.dry_run == true
+        shell: pwsh
+        run: |
+          Write-Host "`n=== DRY RUN ===" -ForegroundColor Yellow
+          Write-Host "Module validated successfully. No changes published." -ForegroundColor Yellow
+          Write-Host "Set dry_run=false to publish for real." -ForegroundColor Yellow
