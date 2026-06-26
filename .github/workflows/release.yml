@@ -143,7 +143,7 @@ jobs:
           $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
 
           Write-Host "Publishing $($manifest.Name) v$($manifest.Version) to PSGallery..." -ForegroundColor Cyan
-          Publish-Module -Path . -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
+          Publish-Module -Path $manifestPath -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
           Write-Host "Published successfully!" -ForegroundColor Green
 
           # Verify publication
