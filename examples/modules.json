@@ -2,6 +2,9 @@
     "modules": [
         { "name": "PSReadLine" },
         { "name": "Terminal-Icons" },
-        { "name": "posh-git" }
+        { "name": "posh-git" },
+        { "name": "z" },
+        { "name": "PSScriptAnalyzer" },
+        { "name": "Pester", "version": "5.6.1" }
     ]
 }

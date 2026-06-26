@@ -21,3 +21,6 @@ Thumbs.db
 # Test
 testResults.xml
 coverage/
+
+# PowerShell
+*.pssc

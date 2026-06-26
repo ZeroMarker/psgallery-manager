@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build module package
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v',''
+          $nupkgDir = "./out"
+          New-Item -ItemType Directory -Path $nupkgDir -Force | Out-Null
+
+          # Update manifest version
+          $manifestPath = './PsGalleryManager.psd1'
+          $content = Get-Content $manifestPath -Raw
+          $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
+          Set-Content $manifestPath -Value $content
+
+          # Create nupkg
+          $stagingDir = Join-Path $nupkgDir "PsGalleryManager"
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+          Copy-Item -Path ./*.ps1, ./*.psd1, ./*.psm1, ./Public, ./Private -Destination $stagingDir -Recurse -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stagingDir/*" -DestinationPath "$nupkgDir/PsGalleryManager-$version.zip"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            CHANGES=$(git log --oneline --no-decorate)
+          else
+            CHANGES=$(git log --oneline --no-decorate ${PREV_TAG}..HEAD)
+          fi
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Changes
+            ${{ steps.changelog.outputs.changes }}
+
+            ## Installation
+            ```powershell
+            Install-Module -Name PsGalleryManager -Scope CurrentUser
+            ```
+          files: |
+            ./out/PsGalleryManager-*.zip
+
+  publish:
+    name: Publish to PSGallery
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update manifest version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v',''
+          $manifestPath = './PsGalleryManager.psd1'
+          $content = Get-Content $manifestPath -Raw
+          $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
+          Set-Content $manifestPath -Value $content
+
+      - name: Publish to PSGallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          if (-not $env:PSGALLERY_API_KEY) {
+            Write-Warning "PSGALLERY_API_KEY not set. Skipping publish."
+            exit 0
+          }
+          Publish-Module -Path . -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force
+          Write-Host "Published to PSGallery successfully." -ForegroundColor Green
