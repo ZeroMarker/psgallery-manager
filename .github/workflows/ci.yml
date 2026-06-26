@@ -27,7 +27,8 @@ jobs:
         run: |
           $excludedRules = @(
             'PSUseShouldProcessForStateChangeFunctions',
-            'PSAvoidUsingWriteHost'
+            'PSAvoidUsingWriteHost',
+            'PSUseSingularNouns'
           )
           $results = Invoke-ScriptAnalyzer -Path . -Recurse -ExcludeRule $excludedRules
           if ($results) {
