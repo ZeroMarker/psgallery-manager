@@ -1,0 +1,7 @@
+{
+    "modules": [
+        { "name": "PSReadLine" },
+        { "name": "Terminal-Icons" },
+        { "name": "posh-git" }
+    ]
+}

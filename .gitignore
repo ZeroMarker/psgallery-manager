@@ -1,0 +1,23 @@
+# Binaries
+*.exe
+*.dll
+*.msi
+
+# Build
+*.nupkg
+build/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+testResults.xml
+coverage/
