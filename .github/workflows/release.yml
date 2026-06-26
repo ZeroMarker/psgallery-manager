@@ -37,39 +37,40 @@ jobs:
           Compress-Archive -Path "$stagingDir/*" -DestinationPath "$nupkgDir/PsGalleryManager-$version.zip"
 
       - name: Extract release notes from CHANGELOG
-        id: notes
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^v',''
-          $changelog = Get-Content './CHANGELOG.md' -Raw
+          $lines = Get-Content './CHANGELOG.md'
+          $capture = $false
+          $notes = @()
 
-          # Match the section for this version
-          $pattern = "(?s)## \[$([regex]::Escape($version))\].*?\n(.*?)(?=\n## \[|\Z)"
-          if ($changelog -match $pattern) {
-            $notes = $matches[2].Trim()
-          } else {
-            # Fallback: get commits since last tag
-            $notes = ""
+          foreach ($line in $lines) {
+            if ($line -match "^## \[$([regex]::Escape($version))\]") {
+              $capture = $true
+              continue
+            }
+            if ($capture -and $line -match '^## \[') {
+              break
+            }
+            if ($capture) {
+              $notes += $line
+            }
+          }
+
+          if ($notes.Count -eq 0) {
+            $notes = @("## Changes", "")
             try {
               $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
               if ($prevTag) {
-                $notes = (git log --oneline --no-decorate "${prevTag}..HEAD") -join "`n"
+                $notes += (git log --oneline --no-decorate "${prevTag}..HEAD")
               }
             } catch {}
-            if (-not $notes) {
-              $notes = (git log --oneline --no-decorate) -join "`n"
+            if ($notes.Count -le 2) {
+              $notes += (git log --oneline --no-decorate)
             }
-            $notes = "## Changes`n$notes"
           }
 
-          # Write to file to preserve formatting
-          $notes | Set-Content -Path './release-notes.md' -Encoding UTF8
-
-          # Set output
-          $delimiter = [guid]::NewGuid().ToString()
-          echo "notes<<$delimiter" >> $env:GITHUB_OUTPUT
-          $notes >> $env:GITHUB_OUTPUT
-          echo "$delimiter" >> $env:GITHUB_OUTPUT
+          $notes -join "`n" | Set-Content -Path './release-notes.md' -Encoding UTF8
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
