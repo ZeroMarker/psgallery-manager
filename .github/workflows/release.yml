@@ -106,25 +106,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Update manifest version
+      - name: Build module for publish
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^v',''
-          $manifestPath = './PsGalleryManager.psd1'
+          $stagingDir = './staging/PsGalleryManager'
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+          Copy-Item -Path './PsGalleryManager.psd1','./PsGalleryManager.psm1' -Destination $stagingDir
+          Copy-Item -Path './Public','./Private' -Destination $stagingDir -Recurse -ErrorAction SilentlyContinue
+
+          # Update version in staged manifest
+          $manifestPath = Join-Path $stagingDir 'PsGalleryManager.psd1'
           $content = Get-Content $manifestPath -Raw
           $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
           Set-Content $manifestPath -Value $content
 
-      - name: Validate module before publish
-        shell: pwsh
-        run: |
-          $manifestPath = './PsGalleryManager.psd1'
           $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
           Write-Host "Module: $($manifest.Name)" -ForegroundColor Cyan
           Write-Host "Version: $($manifest.Version)" -ForegroundColor Cyan
           Write-Host "Functions: $($manifest.ExportedFunctions.Count)" -ForegroundColor Cyan
 
-          # Verify module loads correctly
           Import-Module $manifestPath -Force -ErrorAction Stop
           $commands = Get-Command -Module PsGalleryManager
           Write-Host "Loaded commands: $($commands.Count)" -ForegroundColor Green
@@ -135,18 +137,17 @@ jobs:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
           if (-not $env:PSGALLERY_API_KEY) {
-            Write-Error "PSGALLERY_API_KEY secret is not configured. Add it in repo Settings > Secrets."
+            Write-Error "PSGALLERY_API_KEY secret is not configured."
             exit 1
           }
 
-          $manifestPath = './PsGalleryManager.psd1'
-          $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
+          $stagingDir = './staging/PsGalleryManager'
+          $manifest = Test-ModuleManifest -Path "$stagingDir/PsGalleryManager.psd1" -ErrorAction Stop
 
           Write-Host "Publishing $($manifest.Name) v$($manifest.Version) to PSGallery..." -ForegroundColor Cyan
-          Publish-Module -Path $manifestPath -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
+          Publish-Module -Path $stagingDir -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
           Write-Host "Published successfully!" -ForegroundColor Green
 
-          # Verify publication
           Start-Sleep -Seconds 10
           $published = Find-Module -Name $manifest.Name -Repository PSGallery -ErrorAction SilentlyContinue
           if ($published -and $published.Version -eq $manifest.Version) {

@@ -34,15 +34,19 @@ jobs:
           $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion     = '$version'"
           Set-Content $manifestPath -Value $content
 
-      - name: Validate module
+      - name: Build module
         shell: pwsh
         run: |
-          $manifestPath = './PsGalleryManager.psd1'
+          $stagingDir = './staging/PsGalleryManager'
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+          Copy-Item -Path './PsGalleryManager.psd1','./PsGalleryManager.psm1' -Destination $stagingDir
+          Copy-Item -Path './Public','./Private' -Destination $stagingDir -Recurse -ErrorAction SilentlyContinue
+
+          $manifestPath = Join-Path $stagingDir 'PsGalleryManager.psd1'
           $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
           Write-Host "Module:  $($manifest.Name)" -ForegroundColor Cyan
           Write-Host "Version: $($manifest.Version)" -ForegroundColor Cyan
-          Write-Host "Author:  $($manifest.Author)" -ForegroundColor Cyan
-          Write-Host "GUID:    $($manifest.Guid)" -ForegroundColor Cyan
 
           Import-Module $manifestPath -Force -ErrorAction Stop
           $commands = Get-Command -Module PsGalleryManager
@@ -60,10 +64,10 @@ jobs:
             exit 1
           }
 
-          $manifestPath = './PsGalleryManager.psd1'
-          $manifest = Test-ModuleManifest -Path $manifestPath -ErrorAction Stop
+          $stagingDir = './staging/PsGalleryManager'
+          $manifest = Test-ModuleManifest -Path "$stagingDir/PsGalleryManager.psd1" -ErrorAction Stop
           Write-Host "Publishing $($manifest.Name) v$($manifest.Version)..." -ForegroundColor Cyan
-          Publish-Module -Path $manifestPath -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
+          Publish-Module -Path $stagingDir -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Force -ErrorAction Stop
           Write-Host "Published successfully!" -ForegroundColor Green
 
       - name: Dry run summary
